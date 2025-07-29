@@ -1,0 +1,16 @@
+
+module centos-lookaside 1.0.1;
+
+require {
+	type kernel_t;
+	type git_script_t;
+	type httpd_keytab_t;
+	type httpd_sys_script_t;
+	class file { lock open read };
+	class key { read view };
+}
+
+#============= httpd_sys_script_t ==============
+allow httpd_sys_script_t git_script_t:key { read view };
+allow httpd_sys_script_t httpd_keytab_t:file { lock open read };
+

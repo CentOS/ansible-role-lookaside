@@ -1,1 +1,33 @@
 # Defaults variables for role lookaside
+
+# First http/tls settings
+lookaside_http_hostname: src.stg.centos.org
+lookaside_http_alias: git.stg.centos.org
+lookaside_http_snippet: |
+  # This block is injected into httpd conf (ideal for rewriterules defined at inventory level)
+
+lookaside_http_header_page:
+  title: 'CentOS SIGs sources'
+  title_lead: ''
+  with_manifestation: ''
+  with_content:
+    - element: p
+      element_class: alert alert-success
+      element_content: >-
+        This directory tree contains sources used to build src.rpm from git for SIGs<br>
+        You can also find older centos 7/8/8-stream sources (archived).<br>
+
+# We query fasjson for group membership (SIG) before allowing uploads to lookaside
+# If using fasjson, which is the kerberos keytab to use to auth against fasjson and which fasjson urlendpoint
+lookaside_fasjson: True
+lookaside_fasson_url: https://fasjson.stg.fedoraproject.org
+lookaside_fasjson_keytab:    # File distributed by ansible to let upload.cgi query fasjson/IPA
+lookaside_fasjson_supergroup: sig-infra # the group that can push to all branches (old structure)
+
+# Common options for both : which CA to verify/auth TLS client against (checking that they are signed by that CA)
+lookaside_fas_ca_crt: ipa-stg-ca.crt
+lookaside_fas_ca_issuer_org: STG.FEDORAPROJECT.ORG (Verifying clients signed with correct CA)
+
+# Where would lookaside cache be storing files on disk 
+lookaside_rootpath: /srv/cache
+

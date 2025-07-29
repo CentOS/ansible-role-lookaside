@@ -8,3 +8,119 @@
   tags:
     - vars
     - always
+
+- name: Importing httpd role
+  import_role:
+    name: httpd
+  vars:
+    httpd_tls: True
+  tags:
+    - tls
+
+- import_role:
+    name: httpd
+    tasks_from: custom-header
+  vars: 
+    - httpd_custom_header_page: "{{ lookaside_http_header_page }}"
+
+- name: Correct tls settings/certs/keys
+  import_role:
+    name: httpd
+    tasks_from: pki-tls
+  vars:
+    pki_hostname: "{{ lookaside_http_hostname }}"
+  notify:
+    - restart_httpd
+  tags:
+    - tls
+
+- name: Ensuring we have IPA CA (against which we'll validate tls clients)
+  copy:
+    src: "{{ pkistore }}/{{ lookaside_fas_ca_crt }}"
+    dest: "/etc/pki/tls/certs/{{ lookaside_fas_ca_crt }}"
+
+- name: Configuring httpd vhost
+  template:
+    src: "httpd/{{ item }}"
+    dest: /etc/httpd/conf.d/{{ item }}
+  with_items:
+    - 03_lookaside.conf
+    - tls_lookaside.conf
+  notify:
+    - restart_httpd
+
+- name: Ensuring lookaside cache structure exists
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: apache
+    group: apache
+    setype: "public_content_rw_t"
+  with_items:
+    - "{{ lookaside_rootpath }}"
+    - "{{ lookaside_rootpath }}/lookaside"
+
+- name: Installing required pkg for kerberos/gssapi
+  yum:
+    name: "{{ python_request_gssapi_pkg }}"
+    state: installed
+
+- name: "[workaround] Ensuring keyring instead of KCM for kerberos"
+  yum:
+    name: sssd-kcm
+    state: absent
+  notify: restart_httpd  
+            
+- name: Install FASJSON lookaside upload.cgi script
+  copy:
+    src: "{{ ansible_distribution_major_version }}/{{ item }}"
+    dest: "/var/www/cgi-bin/{{ item }}"
+    mode: 0755
+    setype: "httpd_sys_script_exec_t"
+  with_items:
+    - upload.cgi
+    - upload_sig.cgi
+
+- name: Distributing needed keytab
+  copy:
+    src: "{{ pkistore }}/krb5/{{ lookaside_fasjson_keytab }}"
+    dest: "/etc/httpd/conf.d/{{ lookaside_fasjson_keytab }}"
+    mode: '0400'
+    owner: apache
+    group: apache
+    setype: "httpd_keytab_t"
+
+- name: install the lookaside configuration file 
+  template:
+    src: "lookaside.cfg.j2"
+    dest: "/etc/lookaside.cfg"
+    mode: 0644
+
+- name: Turning on some selinux booleans
+  seboolean:
+    name: "{{ item }}"
+    state: yes
+    persistent: yes
+  with_items:
+    - httpd_can_network_connect
+    - httpd_sys_script_anon_write
+  tags:
+    - selinux
+
+- name: Distributing custom selinux policy file[s]
+  copy:
+    src: "selinux/{{ ansible_distribution_major_version }}/{{ item }}"
+    dest: "/etc/selinux/centos/{{ item }}"
+  with_items:
+    - centos-lookaside.pp
+  register: sepolicy
+  tags:
+    - selinux
+
+- name: Reloading selinux policy on change
+  shell: "/usr/sbin/semodule -u /etc/selinux/centos/{{ item.item }}"
+  with_items: "{{ sepolicy.results }}"
+  when: item.changed
+  no_log: True
+  tags:
+    - selinux

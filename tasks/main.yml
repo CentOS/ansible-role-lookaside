@@ -48,6 +48,8 @@
     - tls_lookaside.conf
   notify:
     - restart_httpd
+  tags:
+    - httpd_config
 
 - name: Ensuring lookaside cache structure exists
   file:

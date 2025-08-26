@@ -47,7 +47,7 @@
     - 03_lookaside.conf
     - tls_lookaside.conf
   notify:
-    - restart_httpd
+    - reload_httpd
   tags:
     - httpd_config
 
